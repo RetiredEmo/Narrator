@@ -45,7 +45,7 @@ Python packages below, which `pip` installs from PyPI.
 ## Running from source
 
 ```
-git clone https://github.com/Retiredemo/Narrator.git
+git clone https://github.com/RetiredEmo/Narrator.git
 cd Narrator
 py -m pip install -r requirements.txt
 py NARRATOR.py
