@@ -1,0 +1,8 @@
+# How the narrator should SAY a word. One per line:  Word = sounds like
+# Spell the right side the way it sounds, e.g.  Lys = Lease
+# Changes apply to the next line spoken. Lines starting with # are ignored.
+# Only the voice hears these; subtitles keep the real spelling.
+# Most Westeros names are already built in; your lines here win over them.
+
+Lys = Lease
+Lyseni = Leaseenee

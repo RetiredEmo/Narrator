@@ -1,0 +1,2 @@
+# Store every file exactly as it is, so a clone is byte-identical to the release.
+* -text

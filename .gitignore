@@ -1,0 +1,13 @@
+# Build output
+dist/
+__pycache__/
+*.pyc
+
+# Made on first use, personal to each player - never committed
+proxy_config.txt
+npc_voices.json
+narrator_log.txt
+tts_speed.txt
+tts_volume.txt
+banned_voices.txt
+*.bak*
