@@ -121,11 +121,23 @@ USE_MOD_DELIVERY_NOTE = True
 # Checked every few seconds, so a new campaign or an AI Influence update that
 # regenerates the file gets it back by itself. Off: nothing is touched.
 ASK_MOD_FOR_NOTES = True
+
+# When you start typing in a conversation, AI Influence stops the character's
+# line on screen. On: their voice stops too. Off (chosen 2026-11-26): the voice
+# finishes the line it was speaking; anything queued after it still plays.
+STOP_VOICE_WHEN_YOU_TYPE = False
 NOTE_PROMPT_FILE = os.path.join("prompts", "json_output", "JsonOutputExpressionField.txt")
 NOTE_PROMPT_OLD_FILES = [os.path.join("prompts", "json_output", "JsonOutputVolumeField.txt")]
 NOTE_PROMPT_LINE = ("- `tts_instructions`: (string) **REQUIRED** \u2014 20\u2013200 "
                     "characters, in the same language as `response`. Describe "
-                    "voice mood, emotion, pace, and delivery style.")
+                    "voice mood, emotion, pace, and delivery style only. Never "
+                    "name an accent, a dialect, or a region's or people's way of "
+                    "speaking, and never call the speech plain, rustic or folksy.")
+# Earlier wordings of our line, replaced in place when found (2026-11-26).
+NOTE_PROMPT_OLD_LINES = [
+    "- `tts_instructions`: (string) **REQUIRED** \u2014 20\u2013200 characters, in the same "
+    "language as `response`. Describe voice mood, emotion, pace, and delivery style.",
+]
 # How long a line waits for its note to show up in the mod's log, once notes
 # have been seen there at all. The reply is logged before the line is shown,
 # so this is nearly always nothing.
@@ -163,6 +175,19 @@ def ensure_note_prompt(folder):
         raw = core._read_shared_bytes(path)
         bom = raw.startswith(b"\xef\xbb\xbf")
         text = raw.decode("utf-8-sig")
+        if NOTE_PROMPT_LINE in text:
+            return
+        replaced = False
+        for old in NOTE_PROMPT_OLD_LINES:
+            if old in text:
+                text = text.replace(old, NOTE_PROMPT_LINE)
+                replaced = True
+        if replaced:
+            with open(path, "w", encoding="utf-8-sig" if bom else "utf-8",
+                      newline="") as f:
+                f.write(text)
+            print("  [notes] Updated the voice-note request (no accents or dialects).")
+            return
         if "tts_instructions" in text:
             return
         crlf = "\r\n" in text
@@ -1521,8 +1546,44 @@ DIALECT_WORDS = re.compile(
     r"rural|regional|country)[ ,-]+)*"
     r"(?:drawl\w*|twang\w*|dialect|brogue|lilt)\b"
     r"|(?:,\s*)?\b(?:(?:a|an) )?(?:folksy|homespun|rustic|countrified|backwoods|"
-    r"hillbilly)\b,?",
+    r"hillbilly)\b,?"
+    # "blunt Vale speech", "a Northern burr", "Dornish lilt": a region's or a
+    # people's way of talking reads as an accent to the voice (Ysilla Royce).
+    r"|(?:,\s*)?\b(?:(?:with|in) )?(?:(?:a|an) )?(?:(?:plain|blunt|dry|thick|broad|soft|"
+    r"slow|clipped|lilting|rough)[ ,]+)*(?:Vale|Northern|northern|Northman|Dornish|"
+    r"southron|Southron|Reach|Riverlands?|Westerlands?|Stormlands?|Crownlands?|ironborn|"
+    r"Ironborn|Iron Islands|Essosi|Westerosi|Braavosi|Valyrian|Dothraki|wildling|"
+    r"Free Folk|free folk|island|country|village|peasant|farm|provincial|regional|"
+    r"backcountry)\s+(?:speech|accent|vowels|burr|lilt|cadence|twang|drawl|tongue|"
+    r"manner of speaking|way of speaking)\b"
+    # Any phrase that ENDS in an accent word, whatever comes before it: a list of
+    # places always misses one ("unhurried hill accent", 2026-11-26).
+    r"|(?:,\s*)?\b(?:(?:with|in|a|an)\s+)*(?:[A-Za-z'-]+\s+){0,2}"
+    r"(?:accents?|drawl\w*|twang\w*|brogue|burr|dialect)\b",
     re.I)
+
+
+def without_dialect(note):
+    """
+    Only the accent and dialect words, from ANY note - the mod's own as well.
+
+    The mod's notes are otherwise left as the mod wrote them; a dialect is the
+    one thing in them that is never wanted (2026-11-26, Ysilla Royce's "dry,
+    blunt Vale speech" came out as a Texan drawl).
+    """
+    if not note:
+        return note
+    out = DIALECT_WORDS.sub("", note)
+    out = re.sub(r"\s{2,}", " ", out)
+    out = re.sub(r"\s+([,.;!?])", r"\1", out).strip(" ,;")
+    out = re.sub(r"(^|[.;!?] )[,;]\s*", r"\1", out)
+    out = re.sub(r"(?:(?<=^)|(?<=[.;!?] ))[A-Za-z]+[.;!?](?: |$)", "", out).strip()
+    if not out or len(out) < 12:
+        return note
+    if out != note:
+        out = out[0].upper() + out[1:]
+        print(f"      [note] accent words dropped: {note[:60]!r} -> {out[:60]!r}")
+    return out
 
 
 def without_voice_words(note):
@@ -1785,7 +1846,7 @@ def delivery_note(npc, voice, text=None, kind="dialog"):
     it on request; tier 3 is composed here from the save. See the settings.
     """
     if USE_MOD_DELIVERY_NOTE:
-        note = mod_note(npc, text, wait=text is not None)
+        note = without_dialect(mod_note(npc, text, wait=text is not None))
         if note:
             return full_direction(note, npc, voice)
     if text is not None and WRITE_OWN_NOTES:
@@ -2386,7 +2447,8 @@ class ModLogFollower:
         elif live:
             self.words.pop(name, None)
             self.talking.pop(name, None)
-            cut_off_early(name)
+            if STOP_VOICE_WHEN_YOU_TYPE:
+                cut_off_early(name)
 
     def close_json(self):
         text, self.open_json = "\n".join(self.open_json or []), None

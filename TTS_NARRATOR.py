@@ -2807,8 +2807,13 @@ def _reserved_voices():
 # sample, and length is not what makes an anchor work — being IDENTICAL on every
 # call is. Naming the accent is the part that has to survive.
 _ACCENT_PHRASES = {
-    "american_english": "Neutral American English accent.",
-    "british_english":  "British English accent.",
+    # 2026-11-26: "Neutral American English accent" let a note such as "plain,
+    # blunt, unhurried Vale speech" pull an American voice into a Texan drawl
+    # (Ysilla Royce). The narrator's own longer anchor never drifted, so the
+    # characters get its key words: one accent, named positively, as a news
+    # anchor speaks it. Still short, and still byte-identical on every call.
+    "american_english": "General American English accent, as a news anchor speaks it.",
+    "british_english":  "Standard British English accent, as a broadcaster speaks it.",
 }
 _accent_instructions_cache = {}
 
